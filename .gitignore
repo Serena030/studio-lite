@@ -5,3 +5,4 @@ studio.db-wal
 studio.db-shm
 .env
 .venv/
+uploads/

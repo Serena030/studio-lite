@@ -86,6 +86,34 @@
   .card h3{font:500 15.5px/1.5 var(--sans);margin-top:4px;color:var(--text)}
   .card .sub{font-size:12px;color:var(--dim);margin-top:3px}
   .empty{text-align:center;color:var(--dim);font-size:13px;padding:34px 0}
+  .tools{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap}
+  .tools select{
+    border:1px solid var(--line);background:var(--card-solid);color:var(--muted);
+    border-radius:999px;padding:5px 11px;font:400 12.5px/1.4 var(--sans);outline:none;
+  }
+  .clip{
+    border:1px solid var(--line);background:var(--card-solid);color:var(--muted);
+    border-radius:999px;padding:5px 12px;font:400 12.5px/1.4 var(--sans);cursor:pointer;
+  }
+  .picked{font-size:12px;color:var(--dim);flex:1;min-width:0;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .atts{display:flex;flex-wrap:wrap;gap:8px;padding:12px 0 0}
+  .att{
+    position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    background:var(--bg-2);
+  }
+  .att img{display:block;width:96px;height:96px;object-fit:cover}
+  .att .doc{
+    width:96px;height:96px;display:flex;flex-direction:column;justify-content:center;
+    align-items:center;gap:5px;padding:8px;text-align:center;
+  }
+  .att .doc b{font:400 20px/1 var(--serif);color:var(--dim)}
+  .att .doc span{font-size:10.5px;color:var(--muted);line-height:1.4;
+    word-break:break-all;max-height:44px;overflow:hidden}
+  .att .kill{
+    position:absolute;right:4px;top:4px;width:20px;height:20px;border:0;border-radius:50%;
+    background:rgba(74,61,67,.55);color:#fff;font-size:13px;line-height:1;cursor:pointer;
+  }
 </style>
 </head>
 <style>
@@ -147,6 +175,12 @@
   <div class="compose">
     <input data-title placeholder="要做什么" maxlength="120">
     <textarea data-body placeholder="说清楚一点（可以不写）" rows="2"></textarea>
+    <div class="tools">
+      <select data-model title="用哪个模型"></select>
+      <button class="clip" data-clip>贴图 / 附件</button>
+      <input type="file" data-file multiple hidden>
+      <span class="picked" data-picked></span>
+    </div>
     <div class="row"><button class="btn main" data-add>开一张</button></div>
   </div>
   <div class="list" data-list></div>
@@ -164,9 +198,12 @@
       <h2 data-stitle></h2>
       <div class="desc" data-sdesc></div>
       <div class="acts" data-sacts></div>
+      <div class="atts" data-satts></div>
       <div class="talk" data-stalk></div>
     </div>
     <div class="foot">
+      <button class="clip" data-clip2 title="贴图 / 附件">＋</button>
+      <input type="file" data-file2 multiple hidden>
       <textarea data-say placeholder="在这张单底下说句话" rows="1"></textarea>
       <button class="btn" data-send>发</button>
     </div>
@@ -292,7 +329,8 @@ async function drawSheet() {
   st.textContent = ST[item.status] || item.status;
   st.style.color = "var(--s-" + item.status + ")";
   $("[data-stitle]").textContent = item.title;
-  $("[data-sdesc]").textContent = (item.body || "").trim() || "（没写正文）";
+  $("[data-sdesc]").textContent = ((item.body || "").trim() || "（没写正文）")
+    + (item.model ? "\n\n模型：" + item.model : "");
 
   const acts = $("[data-sacts]");
   acts.innerHTML = "";
@@ -325,6 +363,10 @@ async function drawSheet() {
     acts.appendChild(bad);
   }
 
+  const attBox = $("[data-satts]");
+  attBox.innerHTML = "";
+  for (const a of item.atts || []) attBox.appendChild(attNode(a));
+
   const talk = $("[data-stalk]");
   talk.innerHTML = "";
   for (const m of item.msgs || []) {
@@ -351,9 +393,14 @@ async function setStatus(no, status) {
 $("[data-add]").onclick = async () => {
   const title = $("[data-title]").value.trim();
   const body = $("[data-body]").value.trim();
+  const model = $("[data-model]").value;
   if (!title) { toast("标题总得写一个"); return; }
   try {
-    await api("/api/orders", {method: "POST", body: JSON.stringify({title, body})});
+    const made = await api("/api/orders", {method: "POST", body: JSON.stringify({title, body, model})});
+    for (const f of pending) await upload(made.no, f);
+    pending = [];
+    $("[data-file]").value = "";
+    $("[data-picked]").textContent = "";
     $("[data-title]").value = "";
     $("[data-body]").value = "";
     load(); toast("开好了");
@@ -379,7 +426,93 @@ $("[data-say]").addEventListener("input", e => {
   e.target.style.height = Math.min(120, e.target.scrollHeight) + "px";
 });
 
+async function upload(no, file) {
+  const fd = new FormData();
+  fd.append("f", file);
+  const headers = {};
+  if (TOKEN) headers["X-Token"] = TOKEN;
+  const r = await fetch("/api/orders/" + no + "/upload", {method: "POST", body: fd, headers});
+  if (!r.ok) {
+    let why = "HTTP " + r.status;
+    try { why = (await r.json()).detail || why; } catch {}
+    throw new Error(why);
+  }
+  return r.json();
+}
+
+function fileURL(name) {
+  return "/api/file/" + encodeURIComponent(name) + (TOKEN ? "?token=" + encodeURIComponent(TOKEN) : "");
+}
+
+function attNode(a) {
+  const d = document.createElement("div");
+  d.className = "att";
+  if ((a.mime || "").startsWith("image/")) {
+    const img = document.createElement("img");
+    img.src = fileURL(a.file);
+    img.alt = a.name;
+    d.appendChild(img);
+  } else {
+    const doc = document.createElement("div");
+    doc.className = "doc";
+    const b = document.createElement("b");
+    b.textContent = (a.name.split(".").pop() || "file").slice(0, 5).toUpperCase();
+    const sp = document.createElement("span");
+    sp.textContent = a.name;
+    doc.append(b, sp);
+    d.appendChild(doc);
+  }
+  d.onclick = () => window.open(fileURL(a.file), "_blank");
+  const kill = document.createElement("button");
+  kill.className = "kill";
+  kill.textContent = "×";
+  kill.onclick = async e => {
+    e.stopPropagation();
+    try { await api("/api/atts/" + a.id, {method: "DELETE"}); drawSheet(); }
+    catch (err) { toast(err.message); }
+  };
+  d.appendChild(kill);
+  return d;
+}
+
+let pending = [];
+$("[data-clip]").onclick = () => $("[data-file]").click();
+$("[data-file]").onchange = e => {
+  pending = Array.from(e.target.files || []);
+  $("[data-picked]").textContent = pending.length
+    ? "待贴 " + pending.length + " 个：" + pending.map(f => f.name).join("、")
+    : "";
+};
+
+$("[data-clip2]").onclick = () => $("[data-file2]").click();
+$("[data-file2]").onchange = async e => {
+  const files = Array.from(e.target.files || []);
+  e.target.value = "";
+  if (!openNo || !files.length) return;
+  try {
+    for (const f of files) await upload(openNo, f);
+    drawSheet(); toast("贴上了");
+  } catch (err) { toast(err.message); }
+};
+
+async function loadConfig() {
+  try {
+    const cfg = await api("/api/config");
+    const sel = $("[data-model]");
+    sel.innerHTML = "";
+    const def = document.createElement("option");
+    def.value = ""; def.textContent = "默认模型";
+    sel.appendChild(def);
+    for (const m of cfg.models || []) {
+      const o = document.createElement("option");
+      o.value = m; o.textContent = m;
+      sel.appendChild(o);
+    }
+  } catch {}
+}
+
 drawChips();
+loadConfig();
 load();
 timer = setInterval(() => { load(); if (openNo) drawSheet(); }, 4000);
 </script>

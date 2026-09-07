@@ -6,7 +6,7 @@
 
 ---
 
-#@ 一、你需要先有什么
+## 一、你需要先有什么
 
 1. 一台能开着不关的电脑或服务器（自己的电脑也行，关机了就停了）
 2. 上面装了 Python（3.10 以上）
@@ -16,17 +16,17 @@
 
 ---
 
-#@ 二、装起来（三条命令）
+## 二、装起来（三条命令）
 
 打开终端，一条一条敲：
 
 ```
 git clone https://github.com/Serena030/studio-lite.git
 cd studio-lite
-pip install fastapi uvicorn
+pip install fastapi uvicorn python-multipart
 ```
 
-#@# 然后启动
+### 然后启动
 
 ```
 python3 server.py
@@ -40,7 +40,7 @@ python3 server.py
 
 ---
 
-#@ 三、怎么用
+## 三、怎么用
 
 **开一张单**
 最上面那个框里写「要做什么」，比如「把首页背景改成粉色」。
@@ -59,7 +59,47 @@ python3 server.py
 
 ---
 
-#@ 四、它在哪个文件夹干活
+## 三点五、贴图和附件
+
+单子里可以贴图、贴文件。
+
+**开单的时候贴**：写完标题，点「贴图 / 附件」，选好文件，再点「开一张」。
+**开完再贴**：点开这张单，左下角那个 ＋ 号。
+
+贴上去的东西会显示成小方块——图直接显示缩略图，其他文件显示文件名。点一下能打开看，右上角的 × 是删掉。
+
+**为什么要贴**：交单的时候，它会把每个附件的完整路径写进给 AI 的那段话里。
+Claude Code 自己会去打开那个文件。所以你贴一张设计稿进去，它是真的能看见那张图，
+不是只知道有个文件名。
+
+文件存在 uploads 文件夹里。想换地方：`STUDIO_UPLOADS=/你的路径`
+
+---
+
+## 三点六、选模型
+
+开单那一栏左边有个下拉，默认是「默认模型」。
+
+选了以后，跑的时候会在命令后面加上 `--model 你选的那个`。
+比如选了 sonnet，实际跑的就是 `claude -p --model sonnet`。
+
+想改下拉里有哪些选项：
+
+```
+STUDIO_MODELS="sonnet,opus,haiku" python3 server.py
+```
+
+要是你换的那个 AI 不认 `--model` 这个写法，改成它认的：
+
+```
+STUDIO_MODEL_FLAG="-m" python3 server.py
+```
+
+不想要这个功能就把它清空：`STUDIO_MODEL_FLAG=""`
+
+---
+
+## 四、它在哪个文件夹干活
 
 默认是在 studio-lite 这个文件夹里。你肯定不想让它改这里——你想让它改你自己的项目。
 
@@ -78,7 +118,7 @@ python3 server.py
 
 ---
 
-#@ 五、想换成别的 AI
+## 五、想换成别的 AI
 
 默认用的是 ```claude -p```。想换别的，改这一个地方：
 
@@ -90,7 +130,7 @@ STUDIO_WORKER_CMD="codex exec" python3 server.py
 
 ---
 
-#@ 六、几个你可能会问的
+## 六、几个你可能会问的
 
 **「自动派工」是什么？要不要开？**
 默认是关着的，意思是：单子开好了就躺在那儿，你不点它就不动。
@@ -116,7 +156,7 @@ STUDIO_TOKEN=你自己编一串密码 STUDIO_HOST=0.0.0.0 python3 server.py
 
 ---
 
-#@ 七、坏了怎么查
+## 七、坏了怎么查
 
 | 现象 | 多半是 |
 |---|---|
@@ -127,7 +167,7 @@ STUDIO_TOKEN=你自己编一串密码 STUDIO_HOST=0.0.0.0 python3 server.py
 
 ---
 
-#@ 八、所有能调的东西
+## 八、所有能调的东西
 
 | 变量 | 默认 | 干什么的 |
 |---|---|---|
@@ -139,10 +179,13 @@ STUDIO_TOKEN=你自己编一串密码 STUDIO_HOST=0.0.0.0 python3 server.py
 | STUDIO_WORKER_TIMEOUT | 1800 | 跑多久算超时，单位秒 |
 | STUDIO_TOKEN | 空 | 口令。放到公网上必须设 |
 | STUDIO_AUTO_DISPATCH | 0 | 1 = 新单自动开跑 |
+| STUDIO_MODELS | sonnet,opus | 下拉里有哪些模型 |
+| STUDIO_MODEL_FLAG | --model | 指定模型用哪个参数写法 |
+| STUDIO_UPLOADS | ./uploads | 贴上去的图和文件存哪 |
 
 ---
 
-#@ 九、给会看代码的人
+## 九、给会看代码的人
 
 ```
 GET    /api/orders?status=
@@ -152,6 +195,9 @@ PATCH  /api/orders/{no}     {title, body, worker, status}
 POST   /api/orders/{no}/msg {who, text}
 POST   /api/orders/{no}/run
 DELETE /api/orders/{no}
+POST   /api/orders/{no}/upload   multipart，字段名 f
+GET    /api/file/{name}
+DELETE /api/atts/{id}
 ```
 
 设了 STUDIO_TOKEN 的话，每个请求带 ```X-Token``` 头。

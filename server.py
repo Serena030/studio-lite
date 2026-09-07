@@ -17,12 +17,13 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import shlex
 import sqlite3
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -31,6 +32,9 @@ DB_PATH = Path(os.getenv("STUDIO_DB") or (ROOT / "studio.db"))
 WORKER_CMD = os.getenv("STUDIO_WORKER_CMD", "claude -p")
 WORKER_DIR = os.getenv("STUDIO_WORKDIR", str(ROOT))
 WORKER_TIMEOUT = int(os.getenv("STUDIO_WORKER_TIMEOUT", "1800"))
+MODEL_FLAG = os.getenv("STUDIO_MODEL_FLAG", "--model")
+MODELS = [m.strip() for m in os.getenv("STUDIO_MODELS", "sonnet,opus").split(",") if m.strip()]
+UPLOAD_DIR = Path(os.getenv("STUDIO_UPLOADS") or (ROOT / "uploads"))
 TOKEN = os.getenv("STUDIO_TOKEN", "").strip()
 AUTO_DISPATCH = os.getenv("STUDIO_AUTO_DISPATCH", "0") == "1"
 
@@ -61,9 +65,20 @@ def setup() -> None:
               worker    TEXT DEFAULT '',
               status    TEXT DEFAULT 'inbox',
               err       TEXT DEFAULT '',
+              model     TEXT DEFAULT '',
               created_at TEXT,
               updated_at TEXT
             );
+            CREATE TABLE IF NOT EXISTS order_atts (
+              id   INTEGER PRIMARY KEY AUTOINCREMENT,
+              no   TEXT NOT NULL,
+              name TEXT NOT NULL,
+              file TEXT NOT NULL,
+              mime TEXT DEFAULT '',
+              size INTEGER DEFAULT 0,
+              created_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_atts_no ON order_atts(no);
             CREATE TABLE IF NOT EXISTS order_msgs (
               id   INTEGER PRIMARY KEY AUTOINCREMENT,
               no   TEXT NOT NULL,
@@ -74,9 +89,14 @@ def setup() -> None:
             CREATE INDEX IF NOT EXISTS idx_msgs_no ON order_msgs(no);
             """
         )
+        try:
+            conn.execute("ALTER TABLE orders ADD COLUMN model TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass
         conn.commit()
     finally:
         conn.close()
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def now() -> str:
@@ -102,7 +122,19 @@ def next_no() -> str:
 def row_to_dict(row: sqlite3.Row) -> dict:
     d = dict(row)
     d["msgs"] = []
+    d["atts"] = []
     return d
+
+
+def list_atts(no: str) -> list[dict]:
+    conn = db()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM order_atts WHERE no=? ORDER BY id", (no,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
 
 
 def get_order(no: str, with_msgs: bool = False) -> dict | None:
@@ -117,6 +149,10 @@ def get_order(no: str, with_msgs: bool = False) -> dict | None:
                 "SELECT * FROM order_msgs WHERE no=? ORDER BY id", (no,)
             ).fetchall()
             item["msgs"] = [dict(r) for r in rows]
+            arows = conn.execute(
+                "SELECT * FROM order_atts WHERE no=? ORDER BY id", (no,)
+            ).fetchall()
+            item["atts"] = [dict(r) for r in arows]
         return item
     finally:
         conn.close()
@@ -154,7 +190,7 @@ def add_msg(no: str, who: str, text: str) -> dict:
 
 
 def update_order(no: str, **fields) -> dict | None:
-    allowed = ("title", "body", "who", "worker", "status", "err")
+    allowed = ("title", "body", "who", "worker", "status", "err", "model")
     sets, args = [], []
     for key, value in fields.items():
         if key in allowed and value is not None:
@@ -187,6 +223,11 @@ def build_prompt(order: dict) -> str:
     ]
     if (order.get("body") or "").strip():
         parts += ["", "正文：", order["body"].strip()]
+    atts = order.get("atts") or []
+    if atts:
+        parts += ["", "这张单带了附件，路径都在下面，你自己打开看："]
+        for a in atts:
+            parts.append("- " + a["name"] + "  →  " + str(UPLOAD_DIR / a["file"]))
     msgs = order.get("msgs") or []
     if msgs:
         parts += ["", "这张单底下已经说过的话："]
@@ -211,8 +252,11 @@ async def run_order(no: str) -> None:
     update_order(no, status="working", err="")
     prompt = build_prompt(order)
     try:
+        argv = shlex.split(WORKER_CMD)
+        if (order.get("model") or "").strip() and MODEL_FLAG:
+            argv += [MODEL_FLAG, order["model"].strip()]
         proc = await asyncio.create_subprocess_exec(
-            *shlex.split(WORKER_CMD),
+            *argv,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
@@ -254,6 +298,7 @@ class NewOrder(BaseModel):
     title: str
     body: str = ""
     who: str = "me"
+    model: str = ""
 
 
 class PatchOrder(BaseModel):
@@ -261,6 +306,7 @@ class PatchOrder(BaseModel):
     body: str | None = None
     worker: str | None = None
     status: str | None = None
+    model: str | None = None
 
 
 class NewMsg(BaseModel):
@@ -309,9 +355,10 @@ async def api_create(payload: NewOrder, x_token: str | None = Header(None)):
     conn = db()
     try:
         conn.execute(
-            "INSERT INTO orders (no, title, body, who, status, created_at, updated_at)"
-            " VALUES (?,?,?,?,'inbox',?,?)",
-            (no, title, payload.body.strip(), payload.who.strip() or "me", now(), now()),
+            "INSERT INTO orders (no, title, body, who, model, status, created_at, updated_at)"
+            " VALUES (?,?,?,?,?,'inbox',?,?)",
+            (no, title, payload.body.strip(), payload.who.strip() or "me",
+             payload.model.strip(), now(), now()),
         )
         conn.commit()
     finally:
@@ -370,6 +417,73 @@ def api_delete(no: str, x_token: str | None = Header(None)):
         conn.close()
 
 
+SAFE_NAME = re.compile(r"[^A-Za-z0-9._\u4e00-\u9fff-]+")
+
+
+@app.post("/api/orders/{no}/upload")
+async def api_upload(no: str, f: UploadFile = File(...),
+                     x_token: str | None = Header(None)):
+    """贴一张图或一个文件到这张单上。
+
+    存的是真文件，交单的时候把绝对路径写进那段话——工人自己打开来看，
+    所以贴设计稿是真的能被看见，不是只看见一个文件名。
+    """
+    guard(x_token)
+    if not get_order(no):
+        raise HTTPException(404, "没有这张单")
+    raw = await f.read()
+    if not raw:
+        raise HTTPException(400, "这是个空文件")
+    if len(raw) > 40 * 1024 * 1024:
+        raise HTTPException(400, "太大了，40MB 以内")
+    name = (f.filename or "file").strip()[-120:]
+    stem = SAFE_NAME.sub("_", name) or "file"
+    saved = time.strftime("%Y%m%d%H%M%S") + "-" + stem
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    (UPLOAD_DIR / saved).write_bytes(raw)
+    conn = db()
+    try:
+        cur = conn.execute(
+            "INSERT INTO order_atts (no, name, file, mime, size, created_at)"
+            " VALUES (?,?,?,?,?,?)",
+            (no, name, saved, f.content_type or "", len(raw), now()),
+        )
+        conn.execute("UPDATE orders SET updated_at=? WHERE no=?", (now(), no))
+        conn.commit()
+        row = conn.execute("SELECT * FROM order_atts WHERE id=?", (cur.lastrowid,)).fetchone()
+        return dict(row)
+    finally:
+        conn.close()
+
+
+@app.get("/api/file/{name}")
+def api_file(name: str, token: str = "", x_token: str | None = Header(None)):
+    guard(x_token or token or None)
+    path = UPLOAD_DIR / name
+    if not path.is_file() or "/" in name or ".." in name:
+        raise HTTPException(404, "没有这个文件")
+    return FileResponse(path)
+
+
+@app.delete("/api/atts/{att_id}")
+def api_att_delete(att_id: int, x_token: str | None = Header(None)):
+    guard(x_token)
+    conn = db()
+    try:
+        row = conn.execute("SELECT * FROM order_atts WHERE id=?", (att_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "没有这个附件")
+        conn.execute("DELETE FROM order_atts WHERE id=?", (att_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    try:
+        (UPLOAD_DIR / row["file"]).unlink(missing_ok=True)
+    except OSError:
+        pass
+    return {"ok": True}
+
+
 @app.get("/")
 def index():
     return FileResponse(ROOT / "static" / "index.html")
@@ -378,7 +492,12 @@ def index():
 @app.get("/api/config")
 def api_config(x_token: str | None = Header(None)):
     guard(x_token)
-    return {"worker": WORKER_CMD, "auto": AUTO_DISPATCH, "workdir": WORKER_DIR}
+    return {
+        "worker": WORKER_CMD,
+        "auto": AUTO_DISPATCH,
+        "workdir": WORKER_DIR,
+        "models": MODELS,
+    }
 
 
 if __name__ == "__main__":
