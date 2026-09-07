@@ -21,7 +21,7 @@
 打开终端，一条一条敲：
 
 ```
-git clone https://github.com/YOUR_NAME/studio-lite.git
+git clone https://github.com/Serena030/studio-lite.git
 cd studio-lite
 pip install fastapi uvicorn
 ```
