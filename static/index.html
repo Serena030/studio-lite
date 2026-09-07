@@ -38,9 +38,31 @@
     color:var(--text);font:15px/1.7 var(--sans);
     min-height:100dvh;padding:calc(24px + env(safe-area-inset-top)) 16px 40px;
   }
-  .wrap{max-width:720px;margin:0 auto}
+  /* 边角上稀稀落落几颗手绘的小东西：淡到几乎看不见，只让这一页显得软 */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:
+      url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'rgba(212%2C160%2C180%2C0.62)'%20stroke-width%3D'1.3'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M12%203%20L14.3%209.2%20L20.8%209.6%20L15.8%2013.7%20L17.5%2020%20L12%2016.4%20L6.5%2020%20L8.2%2013.7%20L3.2%209.6%20L9.7%209.2%20Z'%2F%3E%3C%2Fsvg%3E"), url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'rgba(212%2C160%2C180%2C0.62)'%20stroke-width%3D'1.3'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M12%2012%20C8%207%2C%203%208%2C%203.6%2012%20C4.2%2016%2C%209%2016.5%2C%2012%2012%20Z'%2F%3E%3Cpath%20d%3D'M12%2012%20C16%207%2C%2021%208%2C%2020.4%2012%20C19.8%2016%2C%2015%2016.5%2C%2012%2012%20Z'%2F%3E%3Ccircle%20cx%3D'12'%20cy%3D'12'%20r%3D'1.6'%2F%3E%3Cpath%20d%3D'M10.6%2013.4%20L8.4%2019'%2F%3E%3Cpath%20d%3D'M13.4%2013.4%20L15.6%2019'%2F%3E%3C%2Fsvg%3E"), url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'rgba(212%2C160%2C180%2C0.62)'%20stroke-width%3D'1.3'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M12%203%20V21%20M4%207.5%20L20%2016.5%20M20%207.5%20L4%2016.5'%2F%3E%3Cpath%20d%3D'M12%206.4%20L10%204.6%20M12%206.4%20L14%204.6%20M12%2017.6%20L10%2019.4%20M12%2017.6%20L14%2019.4'%2F%3E%3C%2Fsvg%3E"),
+      url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'rgba(212%2C160%2C180%2C0.62)'%20stroke-width%3D'1.3'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M12%203%20L14.3%209.2%20L20.8%209.6%20L15.8%2013.7%20L17.5%2020%20L12%2016.4%20L6.5%2020%20L8.2%2013.7%20L3.2%209.6%20L9.7%209.2%20Z'%2F%3E%3C%2Fsvg%3E"), url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'rgba(212%2C160%2C180%2C0.62)'%20stroke-width%3D'1.3'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Ccircle%20cx%3D'12'%20cy%3D'12'%20r%3D'4'%2F%3E%3C%2Fsvg%3E"), url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'rgba(212%2C160%2C180%2C0.62)'%20stroke-width%3D'1.3'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M12%2012%20C8%207%2C%203%208%2C%203.6%2012%20C4.2%2016%2C%209%2016.5%2C%2012%2012%20Z'%2F%3E%3Cpath%20d%3D'M12%2012%20C16%207%2C%2021%208%2C%2020.4%2012%20C19.8%2016%2C%2015%2016.5%2C%2012%2012%20Z'%2F%3E%3Ccircle%20cx%3D'12'%20cy%3D'12'%20r%3D'1.6'%2F%3E%3Cpath%20d%3D'M10.6%2013.4%20L8.4%2019'%2F%3E%3Cpath%20d%3D'M13.4%2013.4%20L15.6%2019'%2F%3E%3C%2Fsvg%3E"), url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'rgba(212%2C160%2C180%2C0.62)'%20stroke-width%3D'1.3'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M12%203%20V21%20M4%207.5%20L20%2016.5%20M20%207.5%20L4%2016.5'%2F%3E%3Cpath%20d%3D'M12%206.4%20L10%204.6%20M12%206.4%20L14%204.6%20M12%2017.6%20L10%2019.4%20M12%2017.6%20L14%2019.4'%2F%3E%3C%2Fsvg%3E");
+    background-repeat:no-repeat;
+    background-position:
+      7% 9%, 91% 15%, 4% 41%,
+      95% 47%, 12% 72%, 88% 79%, 46% 93%;
+    background-size: 34px, 44px, 26px, 22px, 12px, 30px, 20px;
+    opacity:.85;
+  }
+  @media (max-width:520px){
+    body::before{background-size: 26px, 32px, 20px, 17px, 10px, 23px, 16px}
+  }
+  .wrap{max-width:720px;margin:0 auto;position:relative;z-index:1}
   .head{text-align:center;margin-bottom:22px}
   .head h1{font:400 34px/1.2 var(--serif);letter-spacing:.5px;color:var(--text)}
+  /* 标题两边各一条细线，中间留着字：比一条横线软 */
+  .head h1::before,.head h1::after{
+    content:"";display:inline-block;width:26px;height:1px;vertical-align:middle;
+    background:linear-gradient(90deg,transparent,var(--line-2));margin:0 14px 6px;
+  }
+  .head h1::after{background:linear-gradient(90deg,var(--line-2),transparent)}
   .head p{font-size:12.5px;color:var(--muted);margin-top:5px;letter-spacing:.06em}
   .chips{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-bottom:18px}
   .chips button{
@@ -77,15 +99,35 @@
     box-shadow:0 2px 12px var(--shadow);transition:.16s;
   }
   .card:active{transform:scale(.994)}
+  @media (hover:hover){
+    .card:hover{border-color:var(--line-2);box-shadow:0 4px 18px var(--shadow);transform:translateY(-1px)}
+  }
+  /* 左边一道细色条：一眼看出这单走到哪了，不用去读字 */
+  .card{position:relative;overflow:hidden}
+  .card::before{
+    content:"";position:absolute;left:0;top:12px;bottom:12px;width:2.5px;border-radius:0 3px 3px 0;
+    background:var(--stripe,transparent);opacity:.55;
+  }
   .card .top{display:flex;align-items:baseline;gap:8px}
   .card .no{font:500 11.5px/1 var(--serif);letter-spacing:.08em;color:var(--dim)}
   .card .st{
-    margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;
+    margin-left:auto;display:inline-flex;align-items:center;gap:5px;
+    font-size:11px;padding:2px 10px 2px 8px;border-radius:999px;
     background:var(--accent-soft);color:var(--muted);white-space:nowrap;
   }
+  .card .st i{
+    display:block;width:5px;height:5px;border-radius:50%;
+    background:currentColor;opacity:.75;
+  }
   .card h3{font:500 15.5px/1.5 var(--sans);margin-top:4px;color:var(--text)}
-  .card .sub{font-size:12px;color:var(--dim);margin-top:3px}
-  .empty{text-align:center;color:var(--dim);font-size:13px;padding:34px 0}
+  .card .sub{font-size:12px;color:var(--dim);margin-top:3px;display:flex;align-items:center;gap:6px}
+  .card .clip-mark{opacity:.7}
+  .empty{text-align:center;color:var(--dim);font-size:13px;padding:40px 0 34px}
+  .empty b{display:block;font:400 30px/1 var(--serif);color:var(--line-2);margin-bottom:10px}
+  /* 列表进场：一条一条浮上来，不是整块砸下来 */
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .list .card{animation:rise .26s ease both}
+  .foot-note{text-align:center;font-size:11px;color:var(--dim);margin-top:26px;letter-spacing:.08em}
   .tools{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap}
   .tools select{
     border:1px solid var(--line);background:var(--card-solid);color:var(--muted);
@@ -184,6 +226,7 @@
     <div class="row"><button class="btn main" data-add>开一张</button></div>
   </div>
   <div class="list" data-list></div>
+  <div class="foot-note">studio · lite</div>
 </div>
 
 <div class="sheet" data-sheet>
@@ -269,15 +312,20 @@ function card(item) {
   no.className = "no"; no.textContent = item.no;
   const st = document.createElement("span");
   st.className = "st";
-  st.textContent = ST[item.status] || item.status;
+  const dot = document.createElement("i");
+  const label = document.createElement("span");
+  label.textContent = ST[item.status] || item.status;
+  st.append(dot, label);
   st.style.color = "var(--s-" + item.status + ")";
   top.append(no, st);
   const h = document.createElement("h3");
   h.textContent = item.title;
   const sub = document.createElement("div");
   sub.className = "sub";
-  sub.textContent = (item.worker ? item.worker + " · " : "") + (item.updated_at || "").slice(5, 16);
+  sub.textContent = (item.model ? item.model + " · " : "") + (item.updated_at || "").slice(5, 16);
   d.append(top, h, sub);
+  d.style.setProperty("--stripe", "var(--s-" + item.status + ")");
+  d.style.animationDelay = Math.min(7, (window.__idx = (window.__idx || 0) + 1)) * 24 + "ms";
   d.onclick = () => openSheet(item.no);
   return d;
 }
@@ -290,10 +338,15 @@ async function load() {
     if (!data.items.length) {
       const e = document.createElement("div");
       e.className = "empty";
-      e.textContent = "这里还什么都没有";
+      const b = document.createElement("b");
+      b.textContent = "\u2727";
+      const t = document.createElement("span");
+      t.textContent = filter ? "这一档里还是空的" : "上面写一句，就有第一张单了";
+      e.append(b, t);
       box.appendChild(e);
       return;
     }
+    window.__idx = 0;
     for (const item of data.items) box.appendChild(card(item));
   } catch (e) { toast(e.message); }
 }
