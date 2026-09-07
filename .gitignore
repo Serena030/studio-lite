@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+studio.db
+studio.db-wal
+studio.db-shm
+.env
+.venv/
