@@ -130,7 +130,105 @@ STUDIO_WORKER_CMD="codex exec" python3 server.py
 
 ---
 
-## 六、几个你可能会问的
+## 六、和已有网站并排跑（Nginx + Node 3000）
+
+不要把 Studio 装进现有的 TypeScript/Node 项目。它们是两个独立进程：
+
+- 原网站继续跑 `127.0.0.1:3000`
+- Studio 跑 `127.0.0.1:8770`
+- Nginx 把 `/studio/` 转发给 Studio
+
+Studio 和原网站不会互相修改。只有当你把 `STUDIO_WORKDIR` 指向原项目，并且在工单里点「交出去跑」时，Studio 才会调用服务器上已有的 Claude Code 去处理那个项目。
+
+### 1. Studio 的环境变量
+
+复制 `.env.example` 为 `.env`，至少确认这几项：
+
+```dotenv
+STUDIO_HOST=127.0.0.1
+STUDIO_PORT=8770
+STUDIO_WORKDIR=/你现有项目的绝对路径
+STUDIO_WORKER_CMD=claude -p
+STUDIO_TOKEN=
+```
+
+`STUDIO_HOST` 保持 `127.0.0.1`：公网请求只能经过 Nginx 进来。如果 Nginx 已经用密码保护 `/studio/`，`STUDIO_TOKEN` 可以留空；否则必须设一个强口令。
+
+### 2. 让 systemd 常驻运行
+
+先在 Studio 目录里建虚拟环境：
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install fastapi uvicorn python-multipart
+command -v claude
+```
+
+把 `command -v claude` 返回的绝对路径写进 `.env` 的 `STUDIO_WORKER_CMD`，例如 `STUDIO_WORKER_CMD=/home/me/.local/bin/claude -p`。systemd 不会自动读你的终端 PATH，这一步能避免「终端里能用，服务却说找不到」。
+
+再把下面的用户名和路径换成服务器上真实的值。`User` 必须是那个已经登录过 Claude Code、也有权限修改 `STUDIO_WORKDIR` 的 Linux 用户：
+
+```ini
+# /etc/systemd/system/studio-lite.service
+[Unit]
+Description=studio-lite
+After=network.target
+
+[Service]
+User=你的用户名
+WorkingDirectory=/opt/studio-lite
+EnvironmentFile=/opt/studio-lite/.env
+ExecStart=/opt/studio-lite/.venv/bin/python server.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now studio-lite
+curl http://127.0.0.1:8770/
+```
+
+### 3. Nginx 加 `/studio/`
+
+在现有域名的 `server { ... }` 里加：
+
+```nginx
+location = /studio {
+    return 301 /studio/;
+}
+
+location /studio/ {
+    client_max_body_size 40m;
+    proxy_pass http://127.0.0.1:8770/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # 如果密码保护原来只写在 `location /` 里，
+    # 这里也要复制同样的 auth_basic 和 auth_basic_user_file。
+}
+```
+
+`proxy_pass` 末尾的 `/` 不能丢，它会把外面的 `/studio/api/...` 正确交给 Studio 的 `/api/...`。页面也已改为相对接口路径，所以直接打开 `http://127.0.0.1:8770/` 和通过 `https://你的域名/studio/` 都能用。
+
+检查并重载：
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### 4. 与现有 Claude Code 的关系
+
+Studio 不会接管或复用正在打开的 Claude Code 会话。每次跑工单时，它都会在 `STUDIO_WORKDIR` 里另起一个 `claude -p` 进程。两边可以并用，但不要同时修改同一批文件。
+
+---
+
+## 七、几个你可能会问的
 
 **「自动派工」是什么？要不要开？**
 默认是关着的，意思是：单子开好了就躺在那儿，你不点它就不动。
@@ -156,18 +254,20 @@ STUDIO_TOKEN=你自己编一串密码 STUDIO_HOST=0.0.0.0 python3 server.py
 
 ---
 
-## 七、坏了怎么查
+## 八、坏了怎么查
 
 | 现象 | 多半是 |
 |---|---|
 | 打开网页一片空白 | 服务没起来，回终端看有没有报错 |
 | 点了跑，马上「塌了」，写着找不到命令 | ```claude``` 没装好，或者不在 PATH 里。终端里单独敲 ```claude``` 试试 |
 | 一直「在做」不动 | 它真的在跑，长任务要等。超过半小时会自己掐断 |
-| 手机打不开 | 检查 STUDIO_HOST 是不是 0.0.0.0，还有防火墙 |
+| 手机打不开 | 直连 IP 时检查 `STUDIO_HOST=0.0.0.0` 和防火墙；经 Nginx 时应保持 `127.0.0.1` 并检查反代配置 |
+| `/studio/` 能打开但接口 404 | 检查 `proxy_pass` 末尾的 `/`，并确认用的是当前版本 |
+| 附件超过 1MB 就失败 | 检查 Nginx 的 `client_max_body_size 40m` |
 
 ---
 
-## 八、所有能调的东西
+## 九、所有能调的东西
 
 | 变量 | 默认 | 干什么的 |
 |---|---|---|
@@ -185,7 +285,7 @@ STUDIO_TOKEN=你自己编一串密码 STUDIO_HOST=0.0.0.0 python3 server.py
 
 ---
 
-## 九、给会看代码的人
+## 十、给会看代码的人
 
 ```
 GET    /api/orders?status=

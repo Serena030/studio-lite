@@ -337,7 +337,7 @@ function card(item) {
 
 async function load() {
   try {
-    const data = await api("/api/orders" + (filter ? "?status=" + filter : ""));
+    const data = await api("api/orders" + (filter ? "?status=" + filter : ""));
     const box = $("[data-list]");
     box.innerHTML = "";
     if (!data.items.length) {
@@ -379,7 +379,7 @@ function actButton(text, main, fn) {
 async function drawSheet() {
   if (!openNo) return;
   let item;
-  try { item = await api("/api/orders/" + openNo); }
+  try { item = await api("api/orders/" + openNo); }
   catch (e) { toast(e.message); return; }
 
   $("[data-sno]").textContent = item.no;
@@ -395,7 +395,7 @@ async function drawSheet() {
   if (item.status !== "working") {
     acts.appendChild(actButton(item.status === "failed" ? "再跑一次" : "交出去跑", true, async () => {
       try {
-        const r = await api("/api/orders/" + item.no + "/run", {method: "POST"});
+        const r = await api("api/orders/" + item.no + "/run", {method: "POST"});
         toast(r.ok ? "派出去了" : r.why);
         drawSheet(); load();
       } catch (e) { toast(e.message); }
@@ -410,7 +410,7 @@ async function drawSheet() {
   acts.appendChild(actButton("删掉", false, async () => {
     if (!confirm("这张单连着底下的话一起删，确定？")) return;
     try {
-      await api("/api/orders/" + item.no, {method: "DELETE"});
+      await api("api/orders/" + item.no, {method: "DELETE"});
       closeSheet(); load(); toast("删了");
     } catch (e) { toast(e.message); }
   }));
@@ -443,7 +443,7 @@ async function drawSheet() {
 
 async function setStatus(no, status) {
   try {
-    await api("/api/orders/" + no, {method: "PATCH", body: JSON.stringify({status})});
+    await api("api/orders/" + no, {method: "PATCH", body: JSON.stringify({status})});
     drawSheet(); load();
   } catch (e) { toast(e.message); }
 }
@@ -454,7 +454,7 @@ $("[data-add]").onclick = async () => {
   const model = $("[data-model]").value;
   if (!title) { toast("标题总得写一个"); return; }
   try {
-    const made = await api("/api/orders", {method: "POST", body: JSON.stringify({title, body, model})});
+    const made = await api("api/orders", {method: "POST", body: JSON.stringify({title, body, model})});
     for (const f of pending) await upload(made.no, f);
     pending = [];
     $("[data-file]").value = "";
@@ -473,7 +473,7 @@ $("[data-send]").onclick = async () => {
   const text = el.value.trim();
   if (!text || !openNo) return;
   try {
-    await api("/api/orders/" + openNo + "/msg", {method: "POST", body: JSON.stringify({text})});
+    await api("api/orders/" + openNo + "/msg", {method: "POST", body: JSON.stringify({text})});
     el.value = ""; el.style.height = "auto";
     drawSheet();
   } catch (e) { toast(e.message); }
@@ -494,7 +494,7 @@ async function upload(no, file) {
   fd.append("f", file);
   const headers = {};
   if (TOKEN) headers["X-Token"] = TOKEN;
-  const r = await fetch("/api/orders/" + no + "/upload", {method: "POST", body: fd, headers});
+  const r = await fetch("api/orders/" + no + "/upload", {method: "POST", body: fd, headers});
   if (!r.ok) {
     let why = "HTTP " + r.status;
     try { why = (await r.json()).detail || why; } catch {}
@@ -504,7 +504,7 @@ async function upload(no, file) {
 }
 
 function fileURL(name) {
-  return "/api/file/" + encodeURIComponent(name) + (TOKEN ? "?token=" + encodeURIComponent(TOKEN) : "");
+  return "api/file/" + encodeURIComponent(name) + (TOKEN ? "?token=" + encodeURIComponent(TOKEN) : "");
 }
 
 function attNode(a) {
@@ -531,7 +531,7 @@ function attNode(a) {
   kill.textContent = "×";
   kill.onclick = async e => {
     e.stopPropagation();
-    try { await api("/api/atts/" + a.id, {method: "DELETE"}); drawSheet(); }
+    try { await api("api/atts/" + a.id, {method: "DELETE"}); drawSheet(); }
     catch (err) { toast(err.message); }
   };
   d.appendChild(kill);
@@ -560,7 +560,7 @@ $("[data-file2]").onchange = async e => {
 
 async function loadConfig() {
   try {
-    const cfg = await api("/api/config");
+    const cfg = await api("api/config");
     const sel = $("[data-model]");
     sel.innerHTML = "";
     const def = document.createElement("option");
